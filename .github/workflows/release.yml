@@ -1,0 +1,47 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: 🚀 Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "Releasing $TAG"
+
+          # 验证config中的版本与tag一致
+          CONFIG_VER=$(python3 -c "
+          import yaml
+          with open('config/settings.yaml') as f:
+              cfg = yaml.safe_load(f)
+          print(cfg['project']['version'])
+          " 2>/dev/null || echo "unknown")
+
+          echo "Tag: $TAG, Config version: $CONFIG_VER"
+
+      - name: Syntax check
+        run: |
+          for f in $(find . -name '*.py' -not -path '*/__pycache__/*'); do
+            python3 -m py_compile "$f"
+          done
+          echo "✅ All files compiled"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') }}

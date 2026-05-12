@@ -1,0 +1,240 @@
+# 领域配置 — DeepSeek 推理测试场景
+# 每个领域需要一个YAML配置文件，定义：
+# - 需求文档的解析规则
+# - 可用的基类和import路径
+# - 测试类型与调用链的映射
+# - 代码生成的上下文参数
+
+# 领域标识
+domain: deepseek_infer
+description: "DeepSeek大模型推理测试用例自动生成"
+
+# 需求文档解析规则
+requirement_parsing:
+  # 需求文档中需要提取的字段映射
+  fields:
+    case_name:
+      source: "用例名"
+      required: true
+    model_name:
+      source: "模型名称，规格"
+      required: true
+    weight_path_var:
+      source: "权重路径"
+      required: true
+      # 提取变量名，如 self.ds_r1_model_path
+      extract_var_name: true
+    code_repo:
+      source: "模型所在代码仓"
+      required: false
+    env_vars:
+      source: "服务拉起前环境变量（可选）"
+      required: false
+    serve_command:
+      source: "服务拉起命令"
+      required: false
+    test_type:
+      source: "执行测试类型"
+      required: true
+    validation:
+      source: "校验指标及基线来源"
+      required: true
+
+  # 从用例名自动推断的维度
+  name_patterns:
+    # test_ms_deepseekr1_671b_vllm_infer_det_ceval_v1_tp32_bf16_910b3_32p_0003
+    network: "deepseek"          # deepseekr1 → deepseek
+    network_version: "r1"        # r1
+    model_size: "671b"           # 671b
+    framework: "vllm"            # vllm / mindie
+    scenario: "infer"            # infer / train
+    test_subtype: "det_ceval"    # det_ceval / acc / perf / func
+    version: "v1"                # v0 / v1
+    parallel_strategy: "tp32"    # tp32 / dp4tp4ep4
+    weight_type: "bf16"          # bf16 / int8 / w4a8 / w8a8
+    hardware: "910b3"            # 910b3
+    cards: "32p"                 # 8p / 16p / 32p
+    sequence: "0003"             # 序号
+
+# 继承体系与import
+class_hierarchy:
+  base_class: "Deepseek"
+  base_import: "from common.ms_aw.network.net.deepseek import Deepseek"
+  
+  # 不同网络对应不同的基类
+  network_to_base:
+    deepseek:
+      base_class: "Deepseek"
+      import: "from common.ms_aw.network.net.deepseek import Deepseek"
+    glm:
+      base_class: "GLM"
+      import: "from common.ms_aw.network.net.glm3 import GLM"
+    llama:
+      base_class: "Llama"
+      import: "from common.ms_aw.network.net.llama2 import Llama"
+    qwen:
+      base_class: "Qwen"
+      import: "from common.ms_aw.network.net.qwen import Qwen"
+
+  # 通用import
+  common_imports:
+    - "import pytest"
+    - "import importlib"
+
+  # 框架相关的config import
+  framework_imports:
+    vllm:
+      - "from common.config.config import CLUSTER_CONFIG_NEW, VLLM_BENCHMARK_TOOL_PATH"
+    mindie:
+      - "from common.config.config import MINDFORMERS_ROOT, SHARE_CKPT_PATH"
+      - "from common.config.config import DATA_ROOT"
+
+# 测试类型与调用链模板映射
+call_chain_templates:
+  # 推理场景 - vllm框架
+  infer_vllm_acc:
+    match_rule: "scenario=='infer' and framework=='vllm' and test_type=='accuracy'"
+    setup:
+      - "super().setup(case_name)"
+      - "self.copy_model(self.model_path, {CODE_REPO})"
+      - "SSHHelper(...)"
+      - "self.parse_cluster_file()"
+      - "self.set_vllm_server_prepare()"
+      - "self.model_path_distribution()"
+      - "dst_obj.ssh_pass()"
+    test_run:
+      - "self.start_vllm_server(start_server_cmd, cycle_time=200, wait_time=60)"
+      - "vllm_ip, vllm_port = self.get_vllm_log_ip_port(log_path)"
+      - "acc = self.aisbench_test(...)"
+      - "self.check_benchmark_acc(accuracy=acc, acc_stand={ACC_STAND}, acc_error={ACC_ERROR})"
+      - "self.check_err_info_in_log([log_path], error_pattern, ignore_cw=..., log_card_type={CARDS})"
+    teardown:
+      - "self.stop_vllm_server()"
+      - "super().teardown()"
+
+  infer_vllm_perf:
+    match_rule: "scenario=='infer' and framework=='vllm' and test_type=='performance'"
+    setup:
+      - "super().setup(case_name)"
+      - "self.copy_model(...)"
+      - "SSHHelper(...)"
+      - "self.parse_cluster_file()"
+      - "self.set_vllm_server_prepare()"
+      - "self.model_path_distribution()"
+    test_run:
+      - "self.start_vllm_server(start_server_cmd)"
+      - "vllm_ip, vllm_port = self.get_vllm_log_ip_port(log_path)"
+      - "self.vllm_benchmark_perf_test(ckpt_path=..., parallel_num=..., host_ip=..., port=...)"
+      - "self.vllm_benchmark_perf_check(perf_stand={PERF_STAND}, perf_error={PERF_ERROR})"
+    teardown:
+      - "self.stop_vllm_server()"
+      - "super().teardown()"
+
+  infer_vllm_det:
+    match_rule: "scenario=='infer' and framework=='vllm' and test_subtype.startswith('det')"
+    setup:
+      - "super().setup(case_name)"
+      - "self.deploy_cluster_env()"
+    test_run:
+      - "self.cluster_ip_process()"
+      - "self.vllm_server_check()"
+      - "vllm_ip, vllm_port = self.get_vllm_log_ip_port()"
+      - "self.aisbench_test(...)  # 按需求次数执行"
+      - "# 自定义校验逻辑"
+      - "self.check_err_info_in_log(...)"
+    teardown:
+      - "super().teardown()"
+
+  infer_mindie_acc:
+    match_rule: "scenario=='infer' and framework=='mindie' and test_type=='accuracy'"
+    setup:
+      - "super().setup(case_name)"
+      - "self.copy_model(...)"
+      - "self.set_mindieserver_prepare()"
+      - "self.set_mindie_config()"
+      - "SSHHelper(...)"
+      - "self.parse_cluster_file()"
+      - "self.cluster_ip_process()"
+      - "self.set_mindie_config_json()"
+      - "self.get_mindie_server_config()"
+      - "self.copy_model(...)"
+      - "self.deploy_cluster_env()"
+    test_run:
+      - "self.run_infer_mindie_cluster_shell()"
+      - "self.mindie_server_warm_up()"
+      - "self.process_check()"
+      - "self.get_benchmark_acc_or_speed()"
+      - "self.check_benchmark_acc()"
+    teardown:
+      - "self.mindie_copy_and_clear()"
+      - "super().teardown()"
+
+  infer_vllm_func:
+    match_rule: "scenario=='infer' and framework=='vllm' and test_type=='function'"
+    setup:
+      - "super().setup(case_name)"
+      - "self.set_deepseek_func_infer_config()"
+      - "self.set_vllm_server_prepare()"
+      - "self.model_path_distribution()"
+      - "self.vllm_rename_worker_shell()"
+    test_run:
+      - "self.start_vllm_server(...)"
+      - "vllm_ip, vllm_port = self.get_vllm_log_ip_port()"
+      - "self.ds_func_perf_test()"
+    teardown:
+      - "self.stop_vllm_server()"
+      - "super().teardown()"
+
+# pytest装饰器映射
+pytest_markers:
+  cards_to_marker:
+    "8p":
+      - "@pytest.mark.env_Network_Ascend_Arm_8p"
+      - "@pytest.mark.env_Network_Ascend_X86_8p"
+    "16p":
+      - "@pytest.mark.env_Network_Ascend_Arm_16p"
+      - "@pytest.mark.env_Network_Ascend_X86_16p"
+    "32p":
+      - "@pytest.mark.env_Network_Ascend_Arm_32p"
+      - "@pytest.mark.env_Network_Ascend_X86_32p"
+  default_timeout: 14400
+  default_level: "@pytest.mark.level1"
+
+# 上下文包路径
+context:
+  module_signatures: "context_store/deepseek_infer/VIEW1_module_signatures.md"
+  dependency_graph: "context_store/deepseek_infer/VIEW2_dependency_graph.md"
+  tool_specs: "context_store/deepseek_infer/VIEW3_tool_specs.md"
+  sample_cases_dir: "context_store/deepseek_infer/sample_cases/"
+  call_chain_file: "context_store/deepseek_infer/call_chain_templates.json"
+
+# 基类方法说明（用于LLM生成代码时的参考）
+method_specs:
+  aisbench_test:
+    category: metric
+    tag: acc
+    desc: "华为官方精度测试工具"
+    inferred_signature: "aisbench_test(ais_bench_path, api_type, dataset, path, model, host_ip, host_port, max_out_len, batch_size, cycle_time)"
+  check_benchmark_acc:
+    category: metric
+    tag: acc
+    desc: "通用精度校验"
+    inferred_signature: "check_benchmark_acc(accuracy, acc_stand, acc_error)"
+  get_benchmark_acc_or_speed:
+    category: metric
+    tag: acc
+    desc: "精度或速度获取工具"
+  check_infer_performence:
+    category: metric
+    tag: perf
+    desc: "推理性能检查"
+  vllm_benchmark_perf_test:
+    category: metric
+    tag: perf
+    desc: "VLLM 性能基准测试"
+    inferred_signature: "vllm_benchmark_perf_test(ckpt_path, parallel_num, input_tokens, output_tokens, host_ip, port)"
+  vllm_benchmark_perf_check:
+    category: metric
+    tag: perf
+    desc: "VLLM 性能基准检查"
+    inferred_signature: "vllm_benchmark_perf_check(perf_stand, perf_error)"

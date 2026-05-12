@@ -1,0 +1,36 @@
+# 领域配置模板 — 新增领域时复制此文件
+
+# 领域标识（与 context_store/ 下的目录名一致）
+domain: {domain_name}
+description: "{领域描述}"
+
+# 需求文档解析规则
+requirement_parsing:
+  fields: []           # 需求文档中的字段映射
+  name_patterns: {}    # 用例名解析规则
+
+# 继承体系与import
+class_hierarchy:
+  base_class: ""       # 默认基类名
+  base_import: ""      # 默认基类import语句
+  network_to_base: {}  # 网络名 → 基类映射
+  common_imports: []   # 通用import
+  framework_imports: {} # 框架特定import
+
+# 调用链模板
+call_chain_templates: {}
+
+# pytest装饰器映射
+pytest_markers:
+  cards_to_marker: {}
+  default_timeout: 14400
+
+# 上下文文件路径
+context:
+  module_signatures: "context_store/{domain_name}/VIEW1_module_signatures.md"
+  dependency_graph: "context_store/{domain_name}/VIEW2_dependency_graph.md"
+  tool_specs: "context_store/{domain_name}/VIEW3_tool_specs.md"
+  sample_cases_dir: "context_store/{domain_name}/sample_cases/"
+
+# 基类方法说明
+method_specs: {}

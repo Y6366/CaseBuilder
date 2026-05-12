@@ -1,0 +1,189 @@
+{
+  "version": "1.0.0",
+  "description": "测试工程公共方法词典 - 描述每个方法的功能、参数和使用场景",
+  "methods": {
+    "setup": {
+      "category": "lifecycle",
+      "tag": "setup",
+      "desc": "用例初始化入口，调用父类setup完成基础环境准备",
+      "signature": "setup(self, case_name: str = None) -> bool",
+      "usage": "每个用例必须调用，传入case_name",
+      "returns": "bool - 初始化是否成功"
+    },
+    "teardown": {
+      "category": "lifecycle",
+      "tag": "teardown",
+      "desc": "用例清理入口，调用父类teardown完成资源回收",
+      "signature": "teardown(self)",
+      "usage": "每个用例必须调用，在最后执行",
+      "returns": "bool"
+    },
+    "set_vllm_server_prepare": {
+      "category": "server",
+      "tag": "vllm",
+      "desc": "构造主从节点所需shell文件，包含环境变量、ray相关操作，主节点包含vllm启动命令",
+      "signature": "set_vllm_server_prepare(self, max_model_len=None, max_num_seqs=None, max_num_batched_tokens=None, block_size=None, gpu_memory_utilization=None, tensor_parallel_size=None) -> bool",
+      "params": {
+        "max_model_len": "模型最大序列长度，如16384",
+        "max_num_seqs": "最大并发序列数，如192",
+        "max_num_batched_tokens": "最大批处理token数",
+        "block_size": "KV cache块大小，通常128",
+        "gpu_memory_utilization": "GPU显存利用率，0.0-1.0",
+        "tensor_parallel_size": "张量并行度"
+      },
+      "usage": "在setup阶段调用，用于准备vllm服务启动所需的环境配置"
+    },
+    "set_env_variables": {
+      "category": "server",
+      "tag": "env",
+      "desc": "设置环境变量，如HCCL通信、显存分配等相关参数",
+      "signature": "set_env_variables(self, **env_vars) -> bool",
+      "usage": "在setup阶段调用，注入特定环境变量"
+    },
+    "start_vllm_server": {
+      "category": "server",
+      "tag": "vllm",
+      "desc": "启动vllm推理服务，支持自定义启动命令",
+      "signature": "start_vllm_server(self, start_command: str) -> bool",
+      "params": {
+        "start_command": "vllm启动命令字符串，支持{model_path}、{port}等占位符"
+      },
+      "usage": "在test_run阶段调用，拉起推理服务"
+    },
+    "vllm_server_start": {
+      "category": "server",
+      "tag": "vllm",
+      "desc": "启动vllm服务并等待就绪，支持超时控制",
+      "signature": "vllm_server_start(self, start_server: str, cycle_time: int = 200, wait_time: int = 60)",
+      "params": {
+        "start_server": "启动命令字符串",
+        "cycle_time": "轮询周期(秒)",
+        "wait_time": "等待时间(秒)"
+      }
+    },
+    "get_vllm_log_ip_port": {
+      "category": "server",
+      "tag": "vllm",
+      "desc": "从vllm服务端日志解析获取IP和端口",
+      "signature": "get_vllm_log_ip_port(self, log_path: str) -> tuple[str, str]",
+      "returns": "(ip, port) 元组"
+    },
+    "stop_vllm_server": {
+      "category": "server",
+      "tag": "vllm",
+      "desc": "停止vllm推理服务，清理进程",
+      "signature": "stop_vllm_server(self)",
+      "usage": "在teardown阶段调用"
+    },
+    "aisbench_test": {
+      "category": "metric",
+      "tag": "acc",
+      "desc": "华为官方精度测试工具，支持多种数据集和测试模式",
+      "signature": "aisbench_test(self, ais_bench_path=None, test_type=None, dataset=None, path=None, model=None, host_ip=None, host_port=None, max_out_len=None, batch_size=None, cycle_time=None, run_count=None, log_suffix=None)",
+      "params": {
+        "test_type": "测试类型：ceval/gsm8k/vllm_api_general_chat等",
+        "dataset": "数据集名称",
+        "host_ip": "服务IP",
+        "host_port": "服务端口",
+        "max_out_len": "最大输出长度",
+        "batch_size": "批大小",
+        "run_count": "运行次数（用于一致性测试）"
+      },
+      "returns": "精度数值或测试结果"
+    },
+    "check_benchmark_acc": {
+      "category": "metric",
+      "tag": "acc",
+      "desc": "通用精度校验，比较实际精度与基准值",
+      "signature": "check_benchmark_acc(self, accuracy=None, acc_stand=None, acc_error=None) -> bool",
+      "params": {
+        "accuracy": "实际精度值",
+        "acc_stand": "精度基准值",
+        "acc_error": "允许误差比例（如0.99表示允许1%误差）"
+      },
+      "returns": "bool - 是否达标"
+    },
+    "check_ceval_consistency": {
+      "category": "metric",
+      "tag": "det",
+      "desc": "CEVAL一致性校验，检查多次运行得分差异是否在阈值内",
+      "signature": "check_ceval_consistency(self, threshold=None, metric=None, run_count=None) -> bool",
+      "params": {
+        "threshold": "允许的最大得分差异",
+        "metric": "校验指标名",
+        "run_count": "运行次数"
+      }
+    },
+    "get_benchmark_acc_or_speed": {
+      "category": "metric",
+      "tag": "acc",
+      "desc": "从benchmark结果中获取精度或速度数值",
+      "signature": "get_benchmark_acc_or_speed(self, log_path=None, metric_type=None)"
+    },
+    "vllm_benchmark_perf_test": {
+      "category": "metric",
+      "tag": "perf",
+      "desc": "VLLM性能基准测试，执行benchmark工具",
+      "signature": "vllm_benchmark_perf_test(self, ckpt_path=None, parallel_num=None, input_tokens=None, output_tokens=None, host_ip=None, port=None)"
+    },
+    "vllm_benchmark_perf_check": {
+      "category": "metric",
+      "tag": "perf",
+      "desc": "VLLM性能基准检查，比对性能数据与标准值",
+      "signature": "vllm_benchmark_perf_check(self, perf_stand=None, perf_error=None) -> bool",
+      "params": {
+        "perf_stand": "性能基准值（tokens/s）",
+        "perf_error": "允许误差比例"
+      },
+      "returns": "bool - 是否达标"
+    },
+    "vllm_benchmark_perf_get": {
+      "category": "metric",
+      "tag": "perf",
+      "desc": "从日志中获取性能信息，有多个则取平均值",
+      "signature": "vllm_benchmark_perf_get(self, benchmark_log_list: list) -> float"
+    },
+    "check_err_info_in_log": {
+      "category": "validation",
+      "tag": "log",
+      "desc": "校验日志文件中是否包含错误信息",
+      "signature": "check_err_info_in_log(self, log_paths: list, error_pattern: str, ignore_cw: str = '', log_card_type=None) -> bool",
+      "params": {
+        "log_paths": "日志文件路径列表",
+        "error_pattern": "错误匹配正则",
+        "ignore_cw": "忽略的错误关键词"
+      }
+    },
+    "copy_model": {
+      "category": "utility",
+      "tag": "prepare",
+      "desc": "拷贝模型代码仓",
+      "signature": "copy_model(self, model_path: str, dest: str, rm_model: bool = False) -> bool"
+    },
+    "mindie_server_warm_up": {
+      "category": "server",
+      "tag": "mindie",
+      "desc": "MindIE服务预热，发送测试请求确保服务就绪",
+      "signature": "mindie_server_warm_up(self, ...)"
+    },
+    "run_infer_mindie_cluster_shell": {
+      "category": "server",
+      "tag": "mindie",
+      "desc": "运行MindIE集群推理shell命令",
+      "signature": "run_infer_mindie_cluster_shell(self, ...)"
+    },
+    "process_check": {
+      "category": "utility",
+      "tag": "check",
+      "desc": "检查进程是否存活",
+      "signature": "process_check(self, ...)"
+    }
+  },
+  "categories": {
+    "lifecycle": "生命周期方法",
+    "server": "服务管理",
+    "metric": "指标测试与校验",
+    "validation": "结果验证",
+    "utility": "工具方法"
+  }
+}

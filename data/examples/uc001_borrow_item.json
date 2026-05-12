@@ -1,0 +1,5 @@
+{
+  "id": "UC001",
+  "name": "Borrow Item",
+  "use_case": "Use Case ID: UC001\nUse Case Name: Borrow Item\nPre-Condition: Checking members of the library\nPost-Condition: Borrow items successfully\nPriority: High\n\nFlow of Event:\n1. The system shows GUI for a list of items to borrow\n2. Member select items to borrow\n3. Member confirm borrow items [A1]\n4. The system records the borrowed items\n5. The system displays a list of borrowed items\n\nAlternative Flow:\n[A1] If click \"Cancel\" button, the system will not records [E1]\n\nException Flow:\n[E1] The system shows the warning \"Confirm cancellation?\""
+}

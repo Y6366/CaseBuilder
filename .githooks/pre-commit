@@ -1,0 +1,48 @@
+#!/bin/bash
+# Pre-commit hook: 提交前本地检查
+# 安装: git config core.hooksPath .githooks
+
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# 1. 语法检查
+echo "  📋 Syntax check..."
+errors=0
+for f in $(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' | grep -v 'knowledge/templates'); do
+    if [ -f "$f" ]; then
+        if ! python3 -m py_compile "$f" 2>/dev/null; then
+            echo "  ❌ Syntax error: $f"
+            python3 -m py_compile "$f"
+            errors=$((errors + 1))
+        fi
+    fi
+done
+
+if [ $errors -gt 0 ]; then
+    echo "❌ Pre-commit failed: $errors syntax error(s)"
+    exit 1
+fi
+echo "  ✅ Syntax OK"
+
+# 2. 检查是否误提交敏感文件
+echo "  🔒 Secret check..."
+for f in $(git diff --cached --name-only --diff-filter=ACM); do
+    if echo "$f" | grep -qE '\.(env|pem|key)$|id_ed25519'; then
+        echo "  ❌ Potential secret file: $f"
+        exit 1
+    fi
+done
+echo "  ✅ No secret files"
+
+# 3. 检查是否误提交pycache
+echo "  🗑️ Pycache check..."
+for f in $(git diff --cached --name-only); do
+    if echo "$f" | grep -q __pycache__; then
+        echo "  ❌ __pycache__ in commit: $f"
+        exit 1
+    fi
+done
+echo "  ✅ No __pycache__"
+
+echo "✅ All pre-commit checks passed"
